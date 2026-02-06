@@ -1,0 +1,19 @@
+[project]
+name = "saas-architecture"
+version = "1.0.0"
+description = "Multi-tenant SaaS platform"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+
+dependencies = [
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "sqlalchemy>=2.0.0",
+    "stripe>=7.0.0",
+    "structlog>=24.1.0",
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
