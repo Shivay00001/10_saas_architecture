@@ -1,10 +1,10 @@
 [project]
 name = "saas-architecture"
 version = "1.0.0"
-description = "Multi-tenant SaaS platform"
+description = "Multi-tenant SaaS foundation for isolation, billing, entitlements, and usage metering"
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "MIT"}
+license = {text = "VisionQuantech Custom Commercial License"}
 
 dependencies = [
     "pydantic>=2.5.0",
