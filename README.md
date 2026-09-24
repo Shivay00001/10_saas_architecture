@@ -1,286 +1,75 @@
 # 10_saas_architecture
 
-> Multi-tenant SaaS backend foundation for tenant isolation, subscriptions, billing, feature entitlements, and usage-based limits.
+> Tenant-isolation foundation for multi-tenant SaaS: plan entitlements, per-request tenant context, and a working FastAPI demo entrypoint.
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![SaaS](https://img.shields.io/badge/Architecture-Multi--Tenant%20SaaS-6C47FF)](https://en.wikipedia.org/wiki/Multitenancy)
-[![Stripe](https://img.shields.io/badge/Billing-Stripe-635BFF?logo=stripe&logoColor=white)](https://stripe.com/)
-[![SQLAlchemy](https://img.shields.io/badge/ORM-SQLAlchemy-D71F00)](https://www.sqlalchemy.org/)
-[![License](https://img.shields.io/badge/License-Custom%20Commercial-orange)](./LICENSE)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688)](https://fastapi.tiangolo.com/)
 
-This repository is a Python SaaS architecture foundation for products that serve multiple customers from a shared platform. It demonstrates tenant lifecycle management, data isolation, subscription plans, Stripe billing, feature entitlements, and usage-based limits.
+## What exists (real, tested)
 
-The project is intended as a modular starting point for B2B SaaS products, internal platforms, subscription services, and usage-metered applications.
+- `src/tenants/isolation.py` — the core, and the only library module:
+  - `Tenant` dataclass with `TenantPlan` tiers (free/starter/professional/enterprise), per-plan limits (`PlanLimits`), `has_feature()`, `can_add_user()`
+  - tenant-scoped context via `ContextVar`: `tenant_context()` context manager, `set_current_tenant()` / `get_current_tenant()` / `require_tenant()`
+  - `TenantMiddleware` (ASGI): resolves the tenant from the `X-Tenant-ID` header (falls back to subdomain) and scopes the whole request
+  - `TenantAwareQuery` mixin: `for_tenant()` filter helper for SQLAlchemy-style queries (illustrative — no DB wired)
+- `src/main.py` — working FastAPI entrypoint: `/health`, `POST /tenants`, `GET /tenants/{id}`, `GET /tenants/{id}/limits`, `GET /me`, `POST /me/feature/{feature}`, `GET /me/quota/users`. In-memory tenant store.
+- `tests/test_isolation.py` + `tests/test_api.py` — 15 tests, all passing.
+- `Dockerfile`, `docker-compose.yml`, `.env.example` exist from the template but reference billing/DB pieces that are not implemented.
 
-## What this project includes
+## What is stubbed / not implemented (honest list)
 
-- tenant models and lifecycle management
-- tenant onboarding workflows
-- data isolation patterns
-- subscription plans and entitlements
-- Stripe billing integration points
-- usage metering and quota enforcement
-- feature flags and plan-based access
-- SQLAlchemy persistence patterns
-- structured application logging
-- Pydantic-based configuration
+Everything below was claimed by earlier README versions but **does not exist** in this repo:
 
-## Repository structure
+- ❌ Stripe billing integration, subscriptions, webhooks — no code, only guidance notes in git history
+- ❌ Usage metering / quota enforcement pipeline — only static plan-limit values exist
+- ❌ Tenant onboarding workflows (`src/tenants/onboarding.py` was listed but never written)
+- ❌ SQLAlchemy persistence — no models, no migrations; the API store is in-memory
+- ❌ Feature-flags service — only static per-plan feature lists
+- ❌ Audit logs, structured logging setup
 
-```text
-10_saas_architecture/
-├── src/
-│   ├── tenants/
-│   │   ├── models.py
-│   │   ├── isolation.py
-│   │   └── onboarding.py
-│   ├── billing/
-│   │   ├── plans.py
-│   │   ├── metering.py
-│   │   └── stripe.py
-│   ├── features/
-│   │   └── flags.py
-│   ├── limits/
-│   └── main.py
-├── tests/
-├── pyproject.toml
-├── README.md
-├── LICENSE
-├── .env.example
-└── .gitignore
-```
-
-## SaaS architecture
-
-```text
-┌──────────────────────────────────────────────────────────────────┐
-│                         Application Users                         │
-│             members │ administrators │ service accounts           │
-└──────────────────────────────────────────────────────────────────┘
-                                  │
-                                  ▼
-┌──────────────────────────────────────────────────────────────────┐
-│                       Tenant Context                              │
-│       tenant identity │ membership │ roles │ isolation             │
-└──────────────────────────────────────────────────────────────────┘
-                                  │
-              ┌───────────────────┼───────────────────┐
-              ▼                   ▼                   ▼
-┌────────────────────┐ ┌──────────────────┐ ┌────────────────────┐
-│ Feature Entitlements│ │ Billing          │ │ Usage and Limits   │
-│ plan flags          │ │ subscriptions   │ │ quotas and meters  │
-└────────────────────┘ └──────────────────┘ └────────────────────┘
-              │                   │                   │
-              └───────────────────┼───────────────────┘
-                                  ▼
-┌──────────────────────────────────────────────────────────────────┐
-│                 Tenant-Scoped Application Data                    │
-└──────────────────────────────────────────────────────────────────┘
-```
-
-## Core concepts
-
-### Multi-tenancy
-
-Every tenant-scoped operation must establish and validate tenant context before reading or writing data. Isolation can be implemented through:
-
-- shared tables with a mandatory tenant identifier
-- database row-level security
-- schema-per-tenant designs
-- database-per-tenant designs for stronger isolation
-
-Choose an approach based on compliance, scale, operational complexity, and customer requirements. Never rely only on a client-provided tenant ID without verifying membership and authorization.
-
-### Subscriptions and entitlements
-
-Plans should define explicit entitlements such as:
-
-- enabled features
-- user or seat limits
-- storage limits
-- API request quotas
-- usage-based pricing rules
-- support or service tiers
-
-Keep entitlement checks centralized so application behavior remains consistent across APIs, jobs, and background workers.
-
-### Usage metering
-
-Usage events should be recorded with enough information to support:
-
-- idempotent aggregation
-- billing-period boundaries
-- corrections and adjustments
-- customer-visible usage reporting
-- reconciliation with the billing provider
-
-Avoid charging twice for retried events. Use stable event identifiers and durable processing state.
+Use this as a starting point for tenant-scoped request handling and plan entitlements, not as a production SaaS backend.
 
 ## Quick start
 
-### Prerequisites
-
-- Python 3.10+
-- pip and virtual environment support
-- database supported by the configured SQLAlchemy setup
-- Stripe test account for billing flows
-
-### Install dependencies
-
 ```bash
 python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -e .
+source .venv/bin/activate
+pip install -e ".[test]"
 ```
 
-### Configure environment
+Boot the API:
 
 ```bash
-cp .env.example .env
+PYTHONPATH=src uvicorn main:app --host 127.0.0.1 --port 8000
 ```
 
-Example local configuration:
-
-```env
-APP_ENVIRONMENT=development
-DATABASE_URL=sqlite:///./saas.db
-STRIPE_SECRET_KEY=sk_test_replace_me
-STRIPE_WEBHOOK_SECRET=whsec_replace_me
-DEFAULT_CURRENCY=usd
-USAGE_EVENT_RETENTION_DAYS=90
-```
-
-Never commit Stripe keys, webhook secrets, customer payment data, or production database credentials.
-
-### Run the example
+Try it:
 
 ```bash
-python -m src.main
+curl -X POST localhost:8000/tenants -H 'Content-Type: application/json' \
+  -d '{"name":"Acme","slug":"acme","plan":"starter"}'
+# -> {"id": "...", "slug": "acme", "plan": "starter", ...}
+
+TID=<id from above>
+curl localhost:8000/me -H "X-Tenant-ID: $TID"
+curl -X POST localhost:8000/me/feature/sso -H "X-Tenant-ID: $TID"   # {"allowed": false} on starter
+curl "localhost:8000/me/quota/users?current_count=3" -H "X-Tenant-ID: $TID"
 ```
 
-## Stripe integration guidance
+Run the tests:
 
-Production billing integrations should:
+```bash
+PYTHONPATH=src pytest tests/ -q
+# 15 passed
+```
 
-- verify webhook signatures before processing events
-- make webhook handlers idempotent
-- persist provider event IDs
-- handle retries and events arriving out of order
-- reconcile subscriptions periodically
-- support failed payments and grace periods
-- avoid storing raw card data
-- keep local subscription state consistent with Stripe
+## Production gaps (before real use)
 
-Test subscription creation, upgrades, downgrades, cancellations, refunds, failed payments, and webhook replay behavior.
-
-## Production-readiness assessment
-
-### Current maturity: strong SaaS architecture foundation
-
-This repository provides useful building blocks for a multi-tenant product, but tenant isolation and billing logic require thorough integration, security, and failure-mode testing before production use.
-
-### Strengths
-
-- clear separation of tenant, billing, feature, and limit concerns
-- suitable foundation for B2B SaaS products
-- supports subscription and usage-based business models
-- includes SQLAlchemy and Stripe extension points
-- easy to adapt to different tenant-isolation strategies
-
-### Production gaps to address
-
-1. Select and document a formal tenant-isolation strategy.
-2. Add automated cross-tenant access tests.
-3. Add database constraints and indexes for tenant-scoped data.
-4. Add billing webhook idempotency and reconciliation jobs.
-5. Add usage event deduplication and correction workflows.
-6. Add subscription state transition and failed-payment handling.
-7. Add audit logs for tenant administrators and billing actions.
-8. Add backups, migrations, retention, and disaster-recovery procedures.
-
-## Security and privacy
-
-Before deployment:
-
-- validate tenant membership on every protected operation
-- prevent insecure direct object references across tenants
-- use least-privilege database credentials
-- encrypt sensitive data in transit and at rest
-- protect billing and webhook endpoints
-- avoid logging payment secrets or personal data
-- define tenant offboarding and data-deletion workflows
-- document data retention and export policies
-
-## SaaS metrics
-
-Track metrics such as:
-
-- active tenants and users
-- trial conversion and churn
-- monthly recurring revenue
-- plan distribution and expansion revenue
-- feature adoption
-- usage against quota
-- failed payments and recovery rate
-- webhook processing failures
-- tenant onboarding completion time
-
-## Monetization opportunities
-
-| Business model | Best use case |
-| --- | --- |
-| B2B SaaS platform | recurring subscription product |
-| usage-based API service | metered processing or automation |
-| white-label SaaS foundation | customized customer deployments |
-| billing and entitlement toolkit | reusable product infrastructure |
-| SaaS architecture consulting | tenant and billing modernization |
-
-## GitHub discoverability
-
-This repository is positioned around:
-
-- Python multi-tenant SaaS architecture
-- Stripe subscription billing
-- usage-based billing backend
-- tenant data isolation
-- feature flags and entitlements
-- SQLAlchemy SaaS platform
-- B2B SaaS backend foundation
-
-To improve discoverability:
-
-- add tenant-isolation diagrams and examples
-- document subscription state transitions
-- include webhook and metering test scenarios
-- publish database schema and migration guidance
-- explain trade-offs between shared and isolated databases
-
-## Roadmap ideas
-
-- add PostgreSQL row-level security examples
-- add organization membership and invitations
-- add self-service billing portal integration
-- add plan upgrades, downgrades, and proration
-- add usage dashboards and quota alerts
-- add tenant-aware background job processing
-- add data export and deletion workflows
-- add automated billing reconciliation
-
-## Contributing
-
-Contributions are welcome for:
-
-- tenant isolation improvements
-- billing and webhook reliability
-- usage metering and quota enforcement
-- feature entitlement modeling
-- migration and database support
-- SaaS security tests and documentation
-
-Please do not submit real payment credentials, customer data, or production secrets.
+1. Real tenant store + auth (never trust a client-supplied tenant ID alone — verify membership).
+2. Choose and document a formal isolation strategy (shared tables + RLS, schema-per-tenant, etc.) with cross-tenant access tests.
+3. Billing/metering only if/when those modules are actually built.
+4. Migrations, backups, audit logging, rate limiting.
 
 ## License
 
-This repository contains a custom commercial license in `LICENSE`.
-
-Review the complete license before personal earning, commercial, enterprise, redistribution, or client deployment use.
+VisionQuantech Custom Commercial License — see `LICENSE`.
